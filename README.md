@@ -4,7 +4,7 @@
   </a>
 
   <h1>Muyo Download</h1>
-  <p><strong>Gerenciador Automatizado de Downloads e Extração de Mídia para Animes, Séries e Filmes</strong><br/>Aplicação desktop desenvolvida em Python para processamento em lote, extração em provedores de vídeo na web e gerenciamento sequencial de filas com interface gráfica compacta.</p>
+  <p><strong>Gerenciador de Downloads para Animes, Séries e Filmes</strong><br/>Extraia temporadas inteiras, organize seus vídeos por pastas e faça downloads em sequência de forma automatizada.</p>
 
   <p>
     <a href="https://github.com/devjohnatas/muyodownloader/releases/latest"><img src="https://img.shields.io/github/v/release/devjohnatas/muyodownloader?label=release&color=F97316&style=flat-square" alt="Latest Release"></a>
@@ -16,122 +16,101 @@
 
 ---
 
-## Visão Geral
+## O que é o Muyo Download?
 
-O **Muyo Download** é uma aplicação desktop especializada na automação, captura e download sequencial de catálogos e temporadas completas de animes, séries e filmes a partir de diversos portais web e provedores de streaming na internet.
+O **Muyo Download** é um aplicativo desktop desenvolvido em Python para download automatizado de animes, séries e filmes direto de catálogos da internet, evitando anúncios e limitações de navegação manual.
 
-Utilizando uma interface limpa construída em CustomTkinter e um motor de scraping fundamentado no Playwright (Chromium Headless), yt-dlp e BeautifulSoup, o software simplifica o processo de download sem exigir navegação manual intensiva ou visualização de páginas publicitárias intrusivas, extraindo os fluxos diretos de vídeo e padronizando a nomenclatura dos arquivos na máquina local.
+A ferramenta combina uma interface gráfica compacta com um motor de extração de links focado no processamento sequencial contínuo, salvando os vídeos de forma padronizada e organizados por título e temporada direto no computador.
 
 ---
 
-## Portais Compatíveis e Servidores de Mídia
+## Plataformas Suportadas
 
-O motor de extração possui uma arquitetura flexível desenhada para operar em sites de acesso público e também em portais web que necessitem de autenticação de conta de usuário:
+O sistema baixa vídeos tanto de catálogos abertos quanto de plataformas que necessitam de conta cadastrada:
 
 <table>
 <tr>
 <td valign="top" width="50%">
 
-#### Portais e Catálogos Web
+#### Catálogos e Portais de Vídeo
 
 | Site / Plataforma | Suporte | Observação |
 |---|---|---|
-| **[Encontrei.info](https://encontrei.info)** | Suportado | *Requer conta de usuário configurada no software* |
-| **[AnimeFire.io](https://animefire.io)** | Suportado | *Catálogo público aberto* |
-| **Outros Portais de Vídeo** | Em expansão | *Suporte modular via scrapers* |
+| [Encontrei.info](https://encontrei.info) | Suportado | *(requer login na aba Configurações)* |
+| [AnimeFire.io](https://animefire.io) | Suportado | |
+| Outros portais web | Em expansão | |
 
 </td>
 <td valign="top" width="50%">
 
-#### Servidores e Provedores (CDNs)
+#### Servidores de Streaming (CDN)
 
-| Provedor de Vídeo | Resolução Autônoma |
+| Servidor | Suporte |
 |---|---|
-| **MixDrop** (API oculta e extração paralela) | Suportado |
-| **StreamTape / Embeds Web** | Suportado |
-| **Blogger / Google Drive** | Suportado |
-| **Mega / HLS / MP4 Direto** | Suportado *(via yt-dlp)* |
+| MixDrop | Suportado |
+| StreamTape | Suportado |
+| Blogger / Google Drive | Suportado |
+| Mega / MP4 Direto | Suportado *(via yt-dlp)* |
 
 </td>
 </tr>
 </table>
 
-> *Note: Para portais que exigem autenticação prévia de usuário, o e-mail e senha de acesso devem ser informados de forma segura na aba Configurações da aplicação. O sistema executa o login silenciosamente em segundo plano, sem manter janelas ou abas de navegadores abertas.*
+---
+
+## Funcionalidades
+
+- **Download Sequencial Contínuo:** Baixa vídeo por vídeo (1 a 1) para utilizar 100% da velocidade da internet, com pausas inteligentes de segurança no final de cada arquivo para evitar desconexões ou bloqueios nos provedores.
+- **Fila Dinâmica:** Permite pesquisar e acrescentar novos episódios ou temporadas na lista sem parar os downloads em andamento.
+- **Filtros por Intervalo:** Recorte rápido de episódios (ex: do 01 ao 12) ou seleção por temporada completa via menu suspenso.
+- **Organização de Áudio e Pastas:** Cria automaticamente a pasta do título com suas subpastas na pasta `Muyo Download`, baixando na preferência desejada: Dublado, Legendado ou Ambos.
+- **Atualização Automática:** Consulta novidades nas Releases do GitHub e realiza a atualização autônoma do aplicativo sem intervenção manual.
 
 ---
 
-## Principais Funcionalidades
+## Como Utilizar
 
-- **Processamento Sequencial Contínuo:** A execução dos downloads é processada de forma individual (item por item na fila), o que permite o aproveitamento total da largura de banda da conexão e previne bloqueios de IP causados por requisições excessivas simultâneas junto aos servidores de vídeo.
-- **Gerenciamento Dinâmico da Fila de Mídiras:** Possibilita a pesquisa e inclusão de novos animes, séries ou filmes durante uma sessão ativa de transferência, integrando os episódios ao final da fila sem a necessidade de paralisar as tarefas correntes.
-- **Interface Ergonômica Otimizada:** Apresentação gráfica compacta (550x580) projetada conforme padrões de softwares desktop modernos, dispondo de uma barra superior unificada em linha única com o controle de seleção alternável e uma grade horizontal para os itens de configuração.
-- **Filtragem Aprimorada de Temporadas:** Opções para filtro rápido por seleção de temporadas via menu suspenso ou recorte quantitativo preciso por faixa sequencial de episódios (exemplo: extrair especificamente do episódio 01 até o 12).
-- **Estruturação de Diretórios e Áudio Multilíngue:** Salvamento padronizado de arquivos divididos em pastas por título e temporada sob o diretório principal `Muyo Download` no Windows. Permite configuração nativa para baixar versões com áudio Dublado, Legendado ou simultaneamente em ambas as versões para cada episódio.
-- **Módulo de Autoatualização Autônoma:** Conectado nativamente à API oficial do GitHub para inspecionar, transferir e atualizar o próprio pacote executável em background sempre que uma nova release for publicada, reiniciando o software pronto para uso na versão recente.
+### Versão Executável (.exe)
+1. Baixe o pacote compactado mais recente na aba de [Releases do GitHub](https://github.com/devjohnatas/muyodownloader/releases/latest).
+2. Extraia o arquivo para a pasta de sua preferência.
+3. Dê um duplo clique em `MuyoDownload.exe` para abrir o aplicativo pronto para uso.
 
 ---
 
-## Instalação e Execução
-
-### Executável Standalone (.exe para Windows)
-
-1. Aceda à aba oficial de [Releases do GitHub](https://github.com/devjohnatas/muyodownloader/releases/latest) e faça o download do pacote mais recente (`MuyoDownload-vX.X.X-windows.zip`).
-2. Extraia o conteúdo para o diretório local de preferência no seu computador.
-3. Inicie o aplicativo clicando duas vezes em `MuyoDownload.exe`. O binário já contempla o ambiente de execução Python, Playwright e yt-dlp sem necessidade de instalações adicionais no sistema.
-
----
-
-### Execução pelo Código-Fonte (Ambiente Desenvolvedor)
-
-1. Certifique-se de ter o **Python 3.10** ou posterior instalado no sistema operacional.
-2. Clone o repositório via linha de comando no seu terminal e acesse a pasta do projeto:
+### Versão via Código-Fonte (Python 3.10+)
+1. Clone o repositório e acesse o diretório:
    ```bash
    git clone https://github.com/devjohnatas/muyodownloader.git
    cd muyodownloader
    ```
-3. Crie e ative um ambiente virtual dedicado para o gerenciamento de dependências:
+2. Crie e ative seu ambiente virtual (opcional):
    ```powershell
-   # Criar o ambiente virtual via Windows
    python -m venv .venv
-
-   # Ativá-lo via PowerShell
    .\.venv\Scripts\activate
    ```
-4. Execute a instalação das bibliotecas de requisitos e do navegador autônomo utilizado pelo motor de scraping:
+3. Instale as dependências e o navegador Playwright:
    ```bash
    pip install -r requirements.txt
    playwright install chromium
    ```
-5. Para inicializar a interface do sistema via terminal, execute:
+4. Inicie o sistema via terminal ou pelo arquivo `iniciar_muyo.bat`:
    ```bash
    python main.py
    ```
-   *No Windows, é possível utilizar diretamente o atalho de script automatizado `iniciar_muyo.bat` na raiz.*
 
 ---
 
-## Compilação em Executável (.exe)
+## Como Compilar (.exe)
 
-O projeto incorpora um pipeline de build automatizado utilizando **PyInstaller**, programado diretamente pelo arquivo `build_exe.py` com regras de otimização de bytecode de nível 2 e ocultação de imports essenciais:
+Para gerar o arquivo executável standalone utilizando o **PyInstaller** com as configurações otimizadas do projeto:
 
 ```bash
 python build_exe.py
 ```
-
-Após o processamento e a limpeza dos temporários de compilação, o aplicativo e sua estrutura de pastas estarão prontos para redistribuição comercial ou de uso geral dentro do diretório gerado em `dist/MuyoDownload/`.
-
----
-
-## Contribuição e Relato de Problemas
-
-O **Muyo Download** é um projeto com foco na contínua evolução dos scrapers para novas plataformas de vídeo e CDNs da internet:
-
-- **Relatar Instabilidades ou Bugs:** Em casos onde domínios sofrerem modificações na estrutura HTML ou alterações em links de players, abra um relato detalhado diretamente na página de [Issues](https://github.com/devjohnatas/muyodownloader/issues), citando a URL exata e comportamentos apresentados no console.
-- **Solicitações de Novos Sites:** Para propor a integração com novos catálogos web de séries, mangás ou animes, registre a recomendação via Issues.
-- **Pull Requests:** Melhorias arquiteturais no código Python ou implementações adicionais para raspagem de novos reprodutores de vídeo são bem-vindas na branch oficial do projeto através de Pull Requests.
+*O executável finalizado e limpo estará disponível na pasta `dist/MuyoDownload/`.*
 
 ---
 
-## Licenciamento
+## Licença
 
-O código-fonte e documentação deste repositório estão distribuídos nos termos da licença open-source **MIT**. Consulte a íntegra no arquivo [LICENSE](LICENSE) deste projeto para especificações relativas ao uso, distribuição e direitos autorais.
+Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para maiores detalhes.
