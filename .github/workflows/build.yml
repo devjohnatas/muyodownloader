@@ -1,0 +1,114 @@
+name: Build & Release Muyo Download
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de Release (exemplo: v1.1.0)"
+        required: false
+        type: string
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      is_release: ${{ steps.version.outputs.is_release }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Determine version and release status
+        id: version
+        shell: bash
+        run: |
+          IS_TAG=${{ startsWith(github.ref, 'refs/tags/v') }}
+          IS_DISPATCH=${{ github.event_name == 'workflow_dispatch' }}
+          
+          if [[ "$IS_TAG" == "true" ]]; then
+            RELEASE_TAG="${{ github.ref_name }}"
+            IS_RELEASE="true"
+          elif [[ "$IS_DISPATCH" == "true" && -n "${{ github.event.inputs.tag }}" ]]; then
+            RELEASE_TAG="${{ github.event.inputs.tag }}"
+            IS_RELEASE="true"
+          else
+            RELEASE_TAG=""
+            IS_RELEASE="false"
+          fi
+          
+          if [[ -z "$RELEASE_TAG" ]]; then
+            RELEASE_TAG="dev-${{ github.sha }}"
+          else
+            RELEASE_TAG="${RELEASE_TAG#v}"
+          fi
+          
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
+          
+          echo "APP_BUILD_VERSION = \"$RELEASE_TAG\"" > src/build_version.py
+          cat src/build_version.py
+
+      - name: Build Muyo Download package (.exe)
+        run: python build_exe.py
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MuyoDownload-windows-${{ github.sha }}
+          path: dist/MuyoDownload
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    needs: build-windows
+    if: needs.build-windows.outputs.is_release == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MuyoDownload-windows-${{ github.sha }}
+          path: dist/MuyoDownload
+
+      - name: Package release zip
+        shell: pwsh
+        run: |
+          $version = "${{ needs.build-windows.outputs.release_tag }}"
+          $zipName = "MuyoDownload-$version-windows.zip"
+          if (Test-Path $zipName) { Remove-Item $zipName -Force }
+          Compress-Archive -Path "dist/MuyoDownload/*" -DestinationPath $zipName -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build-windows.outputs.release_tag }}
+          name: Muyo Download v${{ needs.build-windows.outputs.release_tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            MuyoDownload-${{ needs.build-windows.outputs.release_tag }}-windows.zip

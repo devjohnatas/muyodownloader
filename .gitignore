@@ -1,0 +1,52 @@
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Build & PyInstaller Artifacts
+build/
+dist/
+*.spec
+*.manifest
+*.log
+*.zip
+release_*.md
+__logs__/
+
+# User Configuration & Private Credentials
+settings.json
+*.env
+.env*
+config.json
+secrets.*
+
+# Downloads & Media Dumps
+Downloads*/
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.mp3
+*.png
+*.jpg
+*.html
+!assets/
+!assets/*
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
