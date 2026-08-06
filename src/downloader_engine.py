@@ -1,8 +1,11 @@
+import html
 import json
 import os
 import re
+import sys
 import time
 from bs4 import BeautifulSoup
+import yt_dlp
 from playwright.sync_api import sync_playwright
 import requests
 from src.file_namer import FileNamer
@@ -193,11 +196,12 @@ class DownloaderEngine:
 
   def _ensure_browser_installed(self):
     try:
-      from playwright._impl._driver import compute_driver_executable, get_driver_env
       import subprocess
-      driver = compute_driver_executable()
-      env = get_driver_env()
-      subprocess.run([str(driver), "install", "chromium"], env=env, check=False)
+      subprocess.run(
+          [sys.executable, "-m", "playwright", "install", "chromium"],
+          check=False,
+          capture_output=True,
+      )
     except Exception as e:
       print(f"Aviso ao verificar navegadores do Playwright: {e}")
 
@@ -211,6 +215,12 @@ class DownloaderEngine:
 
     if "animefire" in str(site).lower() or "animefire" in str(ep_url).lower():
       return self._download_animefire_item(item_data, base_folder, preferred_lang)
+
+    if "aniture" in str(site).lower() or "aniture" in str(ep_url).lower():
+      return self._download_aniture_item(item_data, base_folder, preferred_lang)
+
+    if "sushianimes" in str(site).lower() or "sushianimes" in str(ep_url).lower():
+      return self._download_sushianimes_item(item_data, base_folder, preferred_lang)
 
     self.status_cb(
         f"🔍 Solicitando servidor de alta velocidade para: {item_title}"
@@ -481,6 +491,7 @@ class DownloaderEngine:
 
         except Exception as err:
           retries += 1
+          print(f"Aviso - Erro de stream ({url[:50]}...): {err}", flush=True)
           self.status_cb(
               f"⏳ Instabilidade no servidor do vídeo [{item_title}]."
               f" Retentando conexão ({retries}/{max_retries})..."
@@ -644,3 +655,355 @@ class DownloaderEngine:
         self.status_cb(f"❌ {err_msg}")
         self.complete_cb(target_filepath, False, err_msg)
       return False
+
+  def _download_aniture_item(
+      self, item_data: dict, base_folder: str, preferred_lang: str = "Dublado"
+  ) -> bool:
+    self._is_cancelled = False
+    ep_url = item_data.get("url", "")
+    item_title = item_data.get("display_text", "Vídeo")
+    actual_lang = item_data.get("lang", preferred_lang)
+
+    self.status_cb(
+        f"🔍 [Aniture] Consultando reprodutores e servidores para: {item_title}"
+    )
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Referer": ep_url,
+    }
+
+    embed_urls = []
+    try:
+      resp = self.session.get(ep_url, headers=headers, timeout=15)
+      if resp.status_code == 200:
+        soup = BeautifulSoup(resp.text, "html.parser")
+        post_id = None
+        for el in soup.find_all(lambda t: t.has_attr("data-post") and t.has_attr("data-nume")):
+          if not post_id:
+            post_id = el.get("data-post")
+          nume = el.get("data-nume")
+          p_type = el.get("data-type", "tv")
+          if post_id and nume:
+            api_url = f"https://aniture-pt.com.br/wp-json/dooplayer/v2/{post_id}/{p_type}/{nume}"
+            try:
+              api_res = self.session.get(api_url, headers=headers, timeout=10)
+              if api_res.status_code == 200:
+                e_url = api_res.json().get("embed_url")
+                if e_url and e_url not in embed_urls:
+                  embed_urls.append(e_url)
+            except Exception:
+              pass
+    except Exception as e:
+      print(f"Aviso ao consultar DooPlay no Aniture: {e}")
+
+    if not embed_urls:
+      embed_urls.append(ep_url)
+
+    embed_urls.sort(key=lambda u: 0 if ("blogger.com" in u or "blogspot" in u) else 1)
+    target_embed = embed_urls[0]
+    self.status_cb(
+        f"⚡ [Aniture] Servidor selecionado. Capturando fluxo de vídeo..."
+    )
+
+    final_mp4_url = None
+    try:
+      self._ensure_browser_installed()
+      with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=headers["User-Agent"],
+            viewport={"width": 1280, "height": 720},
+        )
+        page = context.new_page()
+
+        def on_req(req):
+          nonlocal final_mp4_url
+          u = req.url
+          if "googlevideo.com/videoplayback" in u or ".mp4" in u or ".mkv" in u:
+            if "pagead" not in u and "instream" not in u:
+              final_mp4_url = u
+
+        page.on("request", on_req)
+        page.goto(target_embed, timeout=25000, wait_until="domcontentloaded")
+        page.wait_for_timeout(2000)
+        try:
+          page.mouse.click(640, 360)
+          page.wait_for_timeout(3000)
+        except Exception:
+          pass
+        browser.close()
+    except Exception as err:
+      self.status_cb(f"⚠️ Erro ao capturar stream Aniture ({item_title}): {str(err)}")
+
+    if not final_mp4_url:
+      err = f"Não foi possível extrair o fluxo de vídeo para [{item_title}]."
+      self.status_cb(f"❌ {err}")
+      self.complete_cb("", False, err)
+      return False
+
+    series_title = item_data.get("series_title", item_data.get("title", "Obra"))
+    season_num = item_data.get("season", 1)
+    ep_num = item_data.get("episode", 1)
+
+    if item_data.get("type") == "episode" or "series_title" in item_data:
+      target_filepath = self.namer.get_series_filepath(
+          base_folder=base_folder,
+          series_title=series_title,
+          season_num=season_num,
+          episode_num=ep_num,
+          episode_title=item_data.get("title", ""),
+          language=actual_lang,
+      )
+    else:
+      target_filepath = self.namer.get_movie_filepath(
+          base_folder=base_folder,
+          movie_title=item_data.get("title", series_title),
+          language=actual_lang,
+      )
+
+    folder_dest = os.path.dirname(target_filepath)
+    os.makedirs(folder_dest, exist_ok=True)
+
+    self.status_cb(f"🚀 Iniciando download de [{item_title}] via servidor Google Video...")
+    success = self._stream_download_resumable(
+        final_mp4_url, target_filepath, item_title, referer="https://www.blogger.com/"
+    )
+
+    if success:
+      self.complete_cb(target_filepath, True, "")
+      return True
+    else:
+      if self._is_cancelled:
+        self.status_cb(f"🛑 Download de [{item_title}] cancelado.")
+        self.complete_cb(target_filepath, False, "Download cancelado.")
+      else:
+        err_msg = f"A conexão caiu ao tentar transferir [{item_title}]."
+        self.status_cb(f"❌ {err_msg}")
+        self.complete_cb(target_filepath, False, err_msg)
+      return False
+
+  def _download_sushianimes_item(
+      self, item_data: dict, base_folder: str, preferred_lang: str = "Dublado"
+  ) -> bool:
+    self._is_cancelled = False
+    ep_url = item_data.get("url", "")
+    item_title = item_data.get("display_text", "Vídeo")
+    actual_lang = item_data.get("lang", preferred_lang)
+
+    self.status_cb(
+        f"🔍 [SushiAnimes] Mapeando servidores (HLS/Blogger) para: {item_title}"
+    )
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Referer": ep_url,
+    }
+
+    m3u8_stream = None
+    blogger_url = None
+    fallback_embed = None
+
+    try:
+      resp = self.session.get(ep_url, headers=headers, timeout=15)
+      if resp.status_code == 200:
+        soup = BeautifulSoup(resp.text, "html.parser")
+        token = ""
+        meta = soup.find("meta", attrs={"name": "csrf-token"}) or soup.find(
+            "meta", attrs={"name": "_token"}
+        )
+        if meta:
+          token = meta.get("content", "")
+
+        embed_ids = []
+        for btn in soup.find_all(
+            lambda t: t.has_attr("data-embed") or t.has_attr("data-id")
+        ):
+          eid = btn.get("data-embed") or btn.get("data-id")
+          if (
+              eid
+              and str(eid).isdigit()
+              and str(eid) not in [str(x) for x in embed_ids]
+          ):
+            embed_ids.append(str(eid))
+
+        post_headers = headers.copy()
+        post_headers.update({
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRF-TOKEN": token,
+            "Origin": "https://sushianimes.com.br",
+        })
+
+        for eid in embed_ids:
+          try:
+            api_res = self.session.post(
+                "https://sushianimes.com.br/ajax/embed",
+                data={"id": eid, "_token": token},
+                headers=post_headers,
+                timeout=10,
+            )
+            if api_res.status_code == 200:
+              text_unescaped = html.unescape(api_res.text)
+              if not m3u8_stream:
+                m3u_matches = re.findall(
+                    r"https?://[^\s\"\'<>]+\.m3u8[^\s\"\'<>]*", text_unescaped
+                )
+                if m3u_matches:
+                  m3u8_stream = m3u_matches[0]
+
+              if not blogger_url:
+                blog_matches = re.findall(
+                    r"https?://(?:www\.)?blogger\.com/video\.g\?token=[^\s\"\'<>&]+",
+                    text_unescaped,
+                    re.IGNORECASE,
+                )
+                if blog_matches:
+                  blogger_url = blog_matches[0]
+
+              if not fallback_embed and "src=" in api_res.text:
+                ifr = BeautifulSoup(api_res.text, "html.parser").find("iframe")
+                if ifr and ifr.get("src") and "http" in str(ifr.get("src")):
+                  fallback_embed = ifr.get("src")
+          except Exception:
+            continue
+    except Exception as e:
+      print(f"Aviso ao consultar API do SushiAnimes: {e}")
+
+    series_title = item_data.get("series_title", item_data.get("title", "Obra"))
+    season_num = item_data.get("season", 1)
+    ep_num = item_data.get("episode", 1)
+
+    if item_data.get("type") == "episode" or "series_title" in item_data:
+      target_filepath = self.namer.get_series_filepath(
+          base_folder=base_folder,
+          series_title=series_title,
+          season_num=season_num,
+          episode_num=ep_num,
+          episode_title=item_data.get("title", ""),
+          language=actual_lang,
+      )
+    else:
+      target_filepath = self.namer.get_movie_filepath(
+          base_folder=base_folder,
+          movie_title=item_data.get("title", series_title),
+          language=actual_lang,
+      )
+
+    folder_dest = os.path.dirname(target_filepath)
+    os.makedirs(folder_dest, exist_ok=True)
+
+    if m3u8_stream:
+      self.status_cb(
+          f"🚀 [SushiAnimes] Baixando fluxo FullHD HLS de [{item_title}] via"
+          " yt-dlp..."
+      )
+
+      def ytdl_hook(d):
+        if self._is_cancelled:
+          raise Exception("Download cancelado pelo usuário.")
+        if d.get("status") == "downloading":
+          p_str = (
+              d.get("_percent_str", "0%")
+              .replace("\x1b[0;94m", "")
+              .replace("\x1b[0m", "")
+              .strip()
+          )
+          spd = (
+              d.get("_speed_str", "N/A")
+              .replace("\x1b[0;92m", "")
+              .replace("\x1b[0m", "")
+              .strip()
+          )
+          self.status_cb(f"📥 [HLS] {item_title}: {p_str} (Velocidade: {spd})")
+        elif d.get("status") == "finished":
+          self.status_cb(f"⚙️ Processando arquivo final de [{item_title}]...")
+
+      ydl_opts = {
+          "outtmpl": target_filepath,
+          "quiet": True,
+          "no_warnings": True,
+          "nocheckcertificate": True,
+          "progress_hooks": [ytdl_hook],
+      }
+      try:
+        if os.path.exists(target_filepath):
+          os.remove(target_filepath)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+          ydl.download([m3u8_stream])
+        if os.path.exists(target_filepath) and os.path.getsize(target_filepath) > 0:
+          self.complete_cb(target_filepath, True, "")
+          return True
+      except Exception as err_yt:
+        print(f"Erro no yt-dlp HLS: {err_yt}")
+        try:
+          import glob
+          for p_file in glob.glob(target_filepath + ".part*"):
+            os.remove(p_file)
+        except Exception as e_clean:
+          print(f"Erro ao limpar arquivos temporarios do yt-dlp: {e_clean}")
+
+    if blogger_url or fallback_embed:
+      target_embed = blogger_url if blogger_url else fallback_embed
+      self.status_cb(
+          f"⚡ [SushiAnimes] Conectando ao reprodutor auxiliar para extrair"
+          " stream..."
+      )
+      final_mp4_url = None
+      try:
+        self._ensure_browser_installed()
+        with sync_playwright() as p:
+          browser = p.chromium.launch(headless=True)
+          context = browser.new_context(
+              user_agent=headers["User-Agent"],
+              viewport={"width": 1280, "height": 720},
+          )
+          page = context.new_page()
+
+          def on_req(req):
+            nonlocal final_mp4_url
+            u = req.url
+            if (
+                "googlevideo.com/videoplayback" in u
+                or ".mp4" in u
+                or ".mkv" in u
+            ):
+              if "pagead" not in u and "instream" not in u:
+                final_mp4_url = u
+
+          page.on("request", on_req)
+          page.goto(target_embed, timeout=25000, wait_until="domcontentloaded")
+          page.wait_for_timeout(2000)
+          try:
+            page.mouse.click(640, 360)
+            page.wait_for_timeout(3000)
+          except Exception:
+            pass
+          browser.close()
+      except Exception as err_pw:
+        print(f"Erro na extração de fallback SushiAnimes: {err_pw}")
+
+      if final_mp4_url:
+        self.status_cb(
+            f"🚀 Iniciando download de [{item_title}] via servidor Google"
+            " Video/CDN..."
+        )
+        success = self._stream_download_resumable(
+            final_mp4_url,
+            target_filepath,
+            item_title,
+            referer="https://www.blogger.com/",
+        )
+        if success:
+          self.complete_cb(target_filepath, True, "")
+          return True
+
+    err = f"Não foi possível extrair fluxo compatível para [{item_title}]."
+    self.status_cb(f"❌ {err}")
+    self.complete_cb(target_filepath, False, err)
+    return False

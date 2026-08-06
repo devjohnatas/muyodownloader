@@ -38,6 +38,8 @@ O sistema baixa vídeos tanto de catálogos abertos quanto de plataformas que ne
 |---|---|---|
 | [Encontrei.info](https://encontrei.info) | Suportado | *(requer login na aba Configurações)* |
 | [AnimeFire.io](https://animefire.io) | Suportado | |
+| [Aniture](https://aniture-pt.com.br) | Suportado | |
+| [SushiAnimes](https://sushianimes.com.br) | Suportado | |
 | Outros portais web | Em expansão | |
 
 </td>

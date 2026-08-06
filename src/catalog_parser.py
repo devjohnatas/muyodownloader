@@ -21,6 +21,12 @@ class CatalogParser:
     if 'animefire' in url.lower():
       return self._parse_animefire_catalog(url)
 
+    if 'aniture' in url.lower():
+      return self._parse_aniture_catalog(url)
+
+    if 'sushianimes' in url.lower():
+      return self._parse_sushianimes_catalog(url)
+
     try:
       resp = self.session.get(url, timeout=20)
       if resp.status_code != 200:
@@ -273,4 +279,222 @@ class CatalogParser:
         }
     except Exception as e:
       return {'error': f'Erro ao processar catálogo do AnimeFire na rede: {e}'}
+
+  def _parse_aniture_catalog(self, url: str) -> dict:
+    try:
+      url = url.strip()
+      headers = {
+          'User-Agent': (
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          )
+      }
+      resp = self.session.get(url, headers=headers, timeout=20)
+      if resp.status_code != 200:
+        return {
+            'error': (
+                'Erro ao acessar página do Aniture (Status HTTP:'
+                f' {resp.status_code})'
+            )
+        }
+
+      soup = BeautifulSoup(resp.text, 'html.parser')
+      title_el = soup.find('h1') or soup.find('h2') or soup.find('title')
+      raw_title = title_el.get_text(strip=True) if title_el else 'Obra Sem Nome'
+
+      clean_title = re.sub(
+          r'(?i)(-\s*)?assistir\s+|^assistir\s+|-?\s*aniture.*$|(dublado|legendado|dual'
+          r' áudio|online|hd|fhd|4k|todos os episódios).*$',
+          '',
+          raw_title,
+      ).strip()
+      clean_title = re.sub(r'\s+', ' ', clean_title).strip()
+      if not clean_title:
+        clean_title = 'Obra Identificada'
+
+      lang_detected = (
+          'Dublado'
+          if ('dublado' in raw_title.lower() or 'dublado' in url.lower())
+          else 'Legendado'
+      )
+
+      episodes_found = {}
+      available_seasons = set()
+
+      for a in soup.find_all('a', href=True):
+        href = a['href'].strip()
+        text = a.get_text(strip=True)
+        if '/episodios/' in href or '/episodio/' in href or '/ep/' in href:
+          if href.startswith('/'):
+            href = 'https://aniture-pt.com.br' + href
+
+          match = re.search(r'(\d{1,2})x(\d{1,3})', href, re.IGNORECASE)
+          if not match:
+            match = re.search(r'(\d{1,2})x(\d{1,3})', text, re.IGNORECASE)
+
+          if match:
+            season = int(match.group(1))
+            episode = int(match.group(2))
+          else:
+            m_ep = re.search(r'(?:episodio|-)(\d+)(?:-|$|/)', href)
+            season = 1
+            episode = int(m_ep.group(1)) if m_ep else len(episodes_found) + 1
+
+          key = (season, episode)
+          ep_title = re.sub(r'^\d+\s*', '', text).strip()
+          if len(ep_title) < 2 or re.match(r'^\d+x\d+$', ep_title):
+            ep_title = f'Episódio {episode}'
+
+          if key not in episodes_found:
+            episodes_found[key] = {
+                'type': 'episode',
+                'series_title': clean_title,
+                'season': season,
+                'episode': episode,
+                'title': ep_title[:50],
+                'url': href,
+                'display_text': (
+                    f'Temporada {season:02d} - Ep {episode:02d} ({clean_title[:30]} -'
+                    f' {lang_detected})'
+                ),
+                'site': 'aniture',
+                'lang': lang_detected,
+            }
+            available_seasons.add(season)
+
+      if not available_seasons:
+        available_seasons.add(1)
+
+      if len(episodes_found) > 0:
+        sorted_keys = sorted(episodes_found.keys())
+        ep_list = [episodes_found[k] for k in sorted_keys]
+        seasons = sorted(list(available_seasons))
+
+        return {
+            'type': 'series',
+            'title': clean_title,
+            'seasons': seasons,
+            'total_episodes': len(ep_list),
+            'items': ep_list,
+            'site': 'aniture',
+        }
+      else:
+        return {
+            'type': 'movie',
+            'title': clean_title,
+            'items': [{
+                'type': 'movie',
+                'title': clean_title,
+                'url': resp.url,
+                'display_text': f'🎬 Filme: {clean_title} ({lang_detected})',
+                'site': 'aniture',
+                'lang': lang_detected,
+            }],
+            'site': 'aniture',
+        }
+    except Exception as e:
+      return {'error': f'Erro ao processar catálogo do Aniture na rede: {e}'}
+
+  def _parse_sushianimes_catalog(self, url: str) -> dict:
+    try:
+      url = url.strip()
+      headers = {
+          'User-Agent': (
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          )
+      }
+      resp = self.session.get(url, headers=headers, timeout=20)
+      if resp.status_code != 200:
+        return {
+            'error': (
+                'Erro ao acessar página do SushiAnimes (Status HTTP:'
+                f' {resp.status_code})'
+            )
+        }
+
+      soup = BeautifulSoup(resp.text, 'html.parser')
+      title_el = soup.find('h1') or soup.find('h2') or soup.find('title')
+      raw_title = title_el.get_text(strip=True) if title_el else 'Obra SushiAnimes'
+
+      clean_title = re.sub(
+          r'(?i)^assistir\s+|-?\s*todos os epis[oó]dios.*$|online|sushianimes',
+          '',
+          raw_title,
+      ).strip()
+      clean_title = re.sub(r'\s+', ' ', clean_title).strip()
+      if not clean_title:
+        clean_title = 'Obra Identificada'
+
+      episodes_found = {}
+      available_seasons = set()
+
+      for a in soup.find_all('a', href=True):
+        href = a['href'].strip()
+        if '-season-' in href and '-episode' in href:
+          if href.startswith('/'):
+            href = 'https://sushianimes.com.br' + href
+
+          match = re.search(r'-(\d+)-season-(\d+)-episode', href, re.IGNORECASE)
+          if match:
+            season = int(match.group(1))
+            episode = int(match.group(2))
+          else:
+            continue
+
+          key = (season, episode)
+          text = a.get_text(strip=True)
+          text = re.sub(r'(?i)^continuar\s*', '', text)
+          text = re.sub(r'^\d+[°ºo]\s*Epis[oó]dio\s*', '', text, flags=re.I).strip()
+          if not text or len(text) < 2:
+            text = f'Episódio {episode}'
+
+          if key not in episodes_found:
+            episodes_found[key] = {
+                'type': 'episode',
+                'series_title': clean_title,
+                'season': season,
+                'episode': episode,
+                'title': text[:50],
+                'url': href,
+                'display_text': (
+                    f'Temporada {season:02d} - Ep {episode:02d} ({clean_title[:30]})'
+                ),
+                'site': 'sushianimes',
+                'lang': 'Dublado/Legendado',
+            }
+            available_seasons.add(season)
+
+      if not available_seasons:
+        available_seasons.add(1)
+
+      if len(episodes_found) > 0:
+        sorted_keys = sorted(episodes_found.keys())
+        ep_list = [episodes_found[k] for k in sorted_keys]
+        seasons = sorted(list(available_seasons))
+
+        return {
+            'type': 'series',
+            'title': clean_title,
+            'seasons': seasons,
+            'total_episodes': len(ep_list),
+            'items': ep_list,
+            'site': 'sushianimes',
+        }
+      else:
+        return {
+            'type': 'movie',
+            'title': clean_title,
+            'items': [{
+                'type': 'movie',
+                'title': clean_title,
+                'url': resp.url,
+                'display_text': f'🎬 Filme/OVA: {clean_title}',
+                'site': 'sushianimes',
+                'lang': 'Dublado/Legendado',
+            }],
+            'site': 'sushianimes',
+        }
+    except Exception as e:
+      return {'error': f'Erro ao processar catálogo do SushiAnimes: {e}'}
 
