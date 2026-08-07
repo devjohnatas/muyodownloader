@@ -88,6 +88,7 @@ def main() -> None:
         "src.file_namer",
         "src.gui_app",
         "src.updater",
+        "src.ffmpeg_engine",
         "src.build_version",
         "urllib.request",
         "zipfile",

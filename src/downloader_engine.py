@@ -938,6 +938,15 @@ class DownloaderEngine:
           os.remove(target_filepath)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
           ydl.download([m3u8_stream])
+          
+        # Limpeza forçada de fragmentos residuais em caso de sucesso
+        try:
+          import glob
+          for p_file in glob.glob(target_filepath + ".part*"):
+            os.remove(p_file)
+        except Exception as e_clean_succ:
+          print(f"Aviso ao limpar fragmentos: {e_clean_succ}")
+          
         if os.path.exists(target_filepath) and os.path.getsize(target_filepath) > 0:
           self.complete_cb(target_filepath, True, "")
           return True

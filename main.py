@@ -56,5 +56,10 @@ if __name__ == '__main__':
   except Exception:
     pass
 
+  if len(sys.argv) >= 3 and sys.argv[1] == '-m' and sys.argv[2] == 'playwright':
+    from playwright.__main__ import main as pw_main
+    sys.argv = ['playwright'] + sys.argv[3:]
+    sys.exit(pw_main())
+
   app = MuyoDownloadApp()
   app.mainloop()

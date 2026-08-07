@@ -14,6 +14,7 @@ from src.catalog_parser import CatalogParser
 from src.config_manager import ConfigManager
 from src.downloader_engine import DownloaderEngine
 import src.updater as updater
+import src.ffmpeg_engine as ffmpeg_engine
 
 
 class MuyoDownloadApp(ctk.CTk):
@@ -93,6 +94,7 @@ class MuyoDownloadApp(ctk.CTk):
     self._build_top_navbar()
     self._build_baixador_frame()
     self._build_configuracoes_frame()
+    self._build_ffmpeg_frame()
 
     self.select_tab('baixador')
     self.after(500, self._auto_connect_in_background)
@@ -106,6 +108,22 @@ class MuyoDownloadApp(ctk.CTk):
         return ctk.CTkImage(light_image=img, dark_image=img, size=size_tuple)
       except Exception:
         return None
+    return None
+
+  def _get_icon(self, name, size_tuple=(18, 18)):
+    if not hasattr(self, '_icon_cache'):
+        self._icon_cache = {}
+    if name in self._icon_cache:
+        return self._icon_cache[name]
+    png_path = os.path.join(getattr(self, 'assets_dir', ''), 'icons', f'{name}.png')
+    if os.path.exists(png_path):
+      try:
+        img = Image.open(png_path)
+        icon = ctk.CTkImage(light_image=img, dark_image=img, size=size_tuple)
+        self._icon_cache[name] = icon
+        return icon
+      except Exception:
+        pass
     return None
 
   # -------------------------------------------------------------------------
@@ -123,20 +141,11 @@ class MuyoDownloadApp(ctk.CTk):
     self.navbar_frame.grid(row=0, column=0, sticky='ew')
     self.navbar_frame.grid_columnconfigure(1, weight=1)
 
-    logo_img = self._get_logo_ctk_image(size_tuple=(26, 26))
-    self.logo_label = ctk.CTkLabel(
-        self.navbar_frame,
-        text=f' {updater.APP_NAME.upper()} v{updater.APP_VERSION}',
-        image=logo_img if logo_img else None,
-        compound='left' if logo_img else 'center',
-        font=ctk.CTkFont('Segoe UI', size=15, weight='bold'),
-        text_color=self.c_orange_main,
-    )
-    self.logo_label.grid(row=0, column=0, padx=(14, 8), pady=10, sticky='w')
-
     self.btn_tab_baixador = ctk.CTkButton(
         self.navbar_frame,
-        text='📥 Baixador',
+        text=' Baixador',
+        image=self._get_icon('download'),
+        compound='left',
         font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
         height=28,
         width=105,
@@ -149,7 +158,9 @@ class MuyoDownloadApp(ctk.CTk):
 
     self.btn_tab_config = ctk.CTkButton(
         self.navbar_frame,
-        text='⚙️ Configurações',
+        text=' Configurações',
+        image=self._get_icon('settings'),
+        compound='left',
         font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
         height=28,
         width=120,
@@ -160,7 +171,24 @@ class MuyoDownloadApp(ctk.CTk):
         border_color='#444444',
         command=lambda: self.select_tab('config'),
     )
-    self.btn_tab_config.grid(row=0, column=3, padx=(4, 14), pady=10, sticky='e')
+    self.btn_tab_config.grid(row=0, column=3, padx=4, pady=10, sticky='e')
+
+    self.btn_tab_ffmpeg = ctk.CTkButton(
+        self.navbar_frame,
+        text=' Ferramentas',
+        image=self._get_icon('tool'),
+        compound='left',
+        font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
+        height=28,
+        width=115,
+        corner_radius=6,
+        fg_color='transparent',
+        hover_color='#242424',
+        border_width=1,
+        border_color='#444444',
+        command=lambda: self.select_tab('ffmpeg'),
+    )
+    self.btn_tab_ffmpeg.grid(row=0, column=4, padx=(4, 14), pady=10, sticky='e')
 
   def select_tab(self, tab_name):
     if tab_name == 'baixador':
@@ -170,7 +198,11 @@ class MuyoDownloadApp(ctk.CTk):
       self.btn_tab_config.configure(
           fg_color='transparent', border_width=1, text_color='#CCCCCC'
       )
+      self.btn_tab_ffmpeg.configure(
+          fg_color='transparent', border_width=1, text_color='#CCCCCC'
+      )
       self.frame_config.grid_remove()
+      self.frame_ffmpeg.grid_remove()
       self.frame_baixador.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
     elif tab_name == 'config':
       self.btn_tab_config.configure(
@@ -179,8 +211,25 @@ class MuyoDownloadApp(ctk.CTk):
       self.btn_tab_baixador.configure(
           fg_color='transparent', border_width=1, text_color='#CCCCCC'
       )
+      self.btn_tab_ffmpeg.configure(
+          fg_color='transparent', border_width=1, text_color='#CCCCCC'
+      )
       self.frame_baixador.grid_remove()
+      self.frame_ffmpeg.grid_remove()
       self.frame_config.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
+    elif tab_name == 'ffmpeg':
+      self.btn_tab_ffmpeg.configure(
+          fg_color=self.c_orange_main, text_color='white', border_width=0
+      )
+      self.btn_tab_baixador.configure(
+          fg_color='transparent', border_width=1, text_color='#CCCCCC'
+      )
+      self.btn_tab_config.configure(
+          fg_color='transparent', border_width=1, text_color='#CCCCCC'
+      )
+      self.frame_baixador.grid_remove()
+      self.frame_config.grid_remove()
+      self.frame_ffmpeg.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
 
   # -------------------------------------------------------------------------
   # TELA 1: ABA BAIXADOR (CONTROLES EM 1 LINHA E BOTÃO INTEGRADO)
@@ -204,7 +253,7 @@ class MuyoDownloadApp(ctk.CTk):
 
     lbl_url = ctk.CTkLabel(
         top_search_frame,
-        text='🔗 Link:',
+        text='Link:',
         font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
         text_color='#FFFFFF',
     )
@@ -223,7 +272,9 @@ class MuyoDownloadApp(ctk.CTk):
 
     self.btn_search = ctk.CTkButton(
         top_search_frame,
-        text='🔍 Buscar',
+        text=' Buscar',
+        image=self._get_icon('search', size_tuple=(16, 16)),
+        compound='left',
         width=85,
         height=28,
         font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
@@ -381,7 +432,7 @@ class MuyoDownloadApp(ctk.CTk):
 
     lbl_lang = ctk.CTkLabel(
         bottom_control_frame,
-        text='🗣️ Áudio:',
+        text='Áudio:',
         font=ctk.CTkFont('Segoe UI', size=11, weight='bold'),
         text_color='#FFFFFF',
     )
@@ -406,7 +457,7 @@ class MuyoDownloadApp(ctk.CTk):
       folder_disp = folder_disp[:14] + '..'
     self.lbl_target_folder = ctk.CTkLabel(
         bottom_control_frame,
-        text=f'📁 {folder_disp}',
+        text=f'Pasta: {folder_disp}',
         font=ctk.CTkFont('Segoe UI', size=11, weight='bold'),
         text_color='#DDDDDD',
         anchor='e',
@@ -441,7 +492,9 @@ class MuyoDownloadApp(ctk.CTk):
 
     self.btn_start_dl = ctk.CTkButton(
         execution_box,
-        text='🚀 INICIAR DOWNLOAD (0)',
+        text=' INICIAR DOWNLOAD (0)',
+        image=self._get_icon('download', size_tuple=(20, 20)),
+        compound='left',
         height=34,
         font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
         fg_color=self.c_orange_main,
@@ -454,7 +507,9 @@ class MuyoDownloadApp(ctk.CTk):
 
     self.btn_cancel_dl = ctk.CTkButton(
         execution_box,
-        text='⏹️ Cancelar',
+        text=' Cancelar',
+        image=self._get_icon('stop', size_tuple=(18, 18)),
+        compound='left',
         width=95,
         height=34,
         font=ctk.CTkFont('Segoe UI', size=12, weight='bold'),
@@ -655,12 +710,14 @@ class MuyoDownloadApp(ctk.CTk):
 
     btn_save = ctk.CTkButton(
         action_box,
-        text='💾 Salvar Alterações',
+        text=' Salvar Alterações',
+        image=self._get_icon('save', size_tuple=(20, 20)),
+        compound='left',
         font=ctk.CTkFont('Segoe UI', size=13, weight='bold'),
         height=34,
         width=180,
-        fg_color=self.c_green,
-        hover_color=self.c_green_hover,
+        fg_color=self.c_orange_main,
+        hover_color=self.c_orange_hover,
         command=self.save_settings,
     )
     btn_save.pack(side='left', padx=(0, 12))
@@ -677,6 +734,194 @@ class MuyoDownloadApp(ctk.CTk):
     upd_table = ctk.CTkFrame(panel_config, fg_color='transparent')
     upd_table.pack(fill='x', padx=18, pady=(0, 10))
     upd_table.grid_columnconfigure(0, weight=1)
+
+  # -------------------------------------------------------------------------
+  # TELA 3: ABA FERRAMENTAS FFMPEG
+  # -------------------------------------------------------------------------
+  def _build_ffmpeg_frame(self):
+    self.frame_ffmpeg = ctk.CTkFrame(self, fg_color='transparent', corner_radius=0)
+    self.frame_ffmpeg.grid_columnconfigure(0, weight=1)
+    self.frame_ffmpeg.grid_rowconfigure(2, weight=1) # Faz o terminal expandir
+
+    # HEADER
+    header_frame = ctk.CTkFrame(self.frame_ffmpeg, fg_color='transparent')
+    header_frame.grid(row=0, column=0, sticky='ew', padx=20, pady=(10, 5))
+    lbl_title = ctk.CTkLabel(
+        header_frame,
+        text='Central de Conversão FFmpeg',
+        font=ctk.CTkFont('Segoe UI', size=20, weight='bold'),
+        text_color='white'
+    )
+    lbl_title.pack(anchor='w')
+    lbl_subtitle = ctk.CTkLabel(
+        header_frame,
+        text='Converta vídeos, separe áudios ou extraia músicas com alta velocidade.',
+        font=ctk.CTkFont('Segoe UI', size=13),
+        text_color='#AAAAAA'
+    )
+    lbl_subtitle.pack(anchor='w')
+
+    # PANEL CONTROLS
+    panel = ctk.CTkFrame(
+        self.frame_ffmpeg,
+        fg_color=self.c_bg_panel,
+        corner_radius=8,
+        border_width=1,
+        border_color=self.c_border
+    )
+    panel.grid(row=1, column=0, sticky='ew', padx=20, pady=10)
+    panel.grid_columnconfigure(1, weight=1)
+
+    # 1. Input File
+    lbl_file = ctk.CTkLabel(panel, text='Arquivo de Entrada:', font=ctk.CTkFont(weight='bold'))
+    lbl_file.grid(row=0, column=0, padx=15, pady=(15, 10), sticky='w')
+
+    self.entry_ff_file = ctk.CTkEntry(
+        panel,
+        placeholder_text='Selecione um arquivo de vídeo ou áudio...',
+        height=32,
+        fg_color='#1E1E24',
+        border_color='#333333'
+    )
+    self.entry_ff_file.grid(row=0, column=1, padx=(0, 10), pady=(15, 10), sticky='ew')
+
+    def _browse_ff_file():
+      path = filedialog.askopenfilename(
+          title='Selecione o arquivo multimídia',
+          filetypes=[("Mídia", "*.mkv *.mp4 *.avi *.webm *.ts *.mp3 *.wav"), ("Todos", "*.*")]
+      )
+      if path:
+        self.entry_ff_file.delete(0, 'end')
+        self.entry_ff_file.insert(0, path)
+
+    btn_browse = ctk.CTkButton(
+        panel, text='Procurar...', width=90, height=32,
+        fg_color=self.c_orange_main, hover_color=self.c_orange_hover,
+        command=_browse_ff_file
+    )
+    btn_browse.grid(row=0, column=2, padx=(0, 15), pady=(15, 10), sticky='e')
+
+    # 2. Action
+    lbl_action = ctk.CTkLabel(panel, text='Ferramenta/Ação:', font=ctk.CTkFont(weight='bold'))
+    lbl_action.grid(row=1, column=0, padx=15, pady=(0, 15), sticky='w')
+
+    self.ff_action_var = ctk.StringVar(value='Converter para MP4 (Padrão)')
+    actions = [
+        'Converter para MP4 (Padrão)',
+        'Separar Idiomas (Dual Áudio para MP4s isolados)',
+        'Extrair Áudio (MP3)',
+        'Extrair Áudio (WAV)'
+    ]
+    self.combo_ff_action = ctk.CTkComboBox(
+        panel,
+        values=actions,
+        variable=self.ff_action_var,
+        height=32,
+        dropdown_font=ctk.CTkFont('Segoe UI', size=13),
+        fg_color='#1E1E24',
+        border_color='#333333',
+        button_color=self.c_orange_main,
+        button_hover_color=self.c_orange_hover,
+        dropdown_hover_color=self.c_orange_hover
+    )
+    self.combo_ff_action.grid(row=1, column=1, columnspan=2, padx=(0, 15), pady=(0, 15), sticky='ew')
+
+    # TERMINAL PANEL
+    term_panel = ctk.CTkFrame(
+        self.frame_ffmpeg,
+        fg_color='#111115',
+        corner_radius=8,
+        border_width=1,
+        border_color='#333333'
+    )
+    term_panel.grid(row=2, column=0, sticky='nsew', padx=20, pady=(0, 10))
+    term_panel.grid_rowconfigure(1, weight=1)
+    term_panel.grid_columnconfigure(0, weight=1)
+
+    term_header = ctk.CTkLabel(
+        term_panel, text='Terminal de Processamento', 
+        font=ctk.CTkFont('Consolas', size=12, weight='bold'), text_color='#555555'
+    )
+    term_header.grid(row=0, column=0, sticky='w', padx=10, pady=(5, 0))
+
+    self.ff_terminal = ctk.CTkTextbox(
+        term_panel, 
+        font=ctk.CTkFont('Consolas', size=13),
+        fg_color='transparent',
+        text_color='#00FF00',
+        wrap='word'
+    )
+    self.ff_terminal.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+    self.ff_terminal.insert('end', 'Aguardando comandos...\n')
+    self.ff_terminal.configure(state='disabled')
+
+    # BOTTOM BUTTON
+    btn_frame = ctk.CTkFrame(self.frame_ffmpeg, fg_color='transparent')
+    btn_frame.grid(row=3, column=0, sticky='ew', padx=20, pady=(0, 15))
+    
+    self.btn_ff_start = ctk.CTkButton(
+        btn_frame,
+        text=' INICIAR PROCESSAMENTO',
+        image=self._get_icon('play', size_tuple=(20, 20)),
+        compound='left',
+        font=ctk.CTkFont('Segoe UI', size=14, weight='bold'),
+        height=42,
+        fg_color=self.c_orange_main,
+        hover_color=self.c_orange_hover,
+        command=self._start_ffmpeg_process
+    )
+    self.btn_ff_start.pack(fill='x')
+
+  def _ff_log(self, msg):
+    self.ff_terminal.configure(state='normal')
+    self.ff_terminal.insert('end', f"> {msg}\n")
+    self.ff_terminal.see('end')
+    self.ff_terminal.configure(state='disabled')
+
+  def _start_ffmpeg_process(self):
+    input_file = self.entry_ff_file.get().strip()
+    if not input_file or not os.path.exists(input_file):
+        self.show_notification('Erro', 'Selecione um arquivo de entrada válido.', type='warning')
+        return
+
+    action = self.ff_action_var.get()
+    self.btn_ff_start.configure(state='disabled', text='⏳ PROCESSANDO...')
+    
+    self.ff_terminal.configure(state='normal')
+    self.ff_terminal.delete('1.0', 'end')
+    self.ff_terminal.configure(state='disabled')
+    self._ff_log("Inicializando motor FFmpeg...")
+    
+    def cb(msg):
+        self.after(0, lambda: self._ff_log(msg))
+        
+    threading.Thread(target=self._run_ffmpeg_task, args=(input_file, action, cb), daemon=True).start()
+
+  def _run_ffmpeg_task(self, input_file, action, cb):
+    try:
+        base, ext = os.path.splitext(input_file)
+        success = False
+        if 'Converter para MP4' in action:
+            out_file = base + '_Convertido.mp4'
+            success = ffmpeg_engine.convert_to_mp4(input_file, out_file, status_cb=cb)
+        elif 'Separar Idiomas' in action:
+            out_dir = base + '_Separados'
+            success = ffmpeg_engine.split_dual_audio_video(input_file, out_dir, status_cb=cb)
+        elif 'Extrair Áudio' in action:
+            fmt = 'mp3' if 'MP3' in action else 'wav'
+            out_file = base + f'_Audio.{fmt}'
+            success = ffmpeg_engine.extract_audio(input_file, out_file, format=fmt, status_cb=cb)
+            
+        if success:
+            cb("✔️ OPERAÇÃO CONCLUÍDA COM SUCESSO!")
+            self.after(0, lambda: self.show_notification('Sucesso!', 'Processamento concluído.', type='success'))
+        else:
+            cb("❌ FALHA NO PROCESSAMENTO!")
+            self.after(0, lambda: self.show_notification('Aviso', 'Processamento falhou ou ocorreu algum erro.', type='warning'))
+    except Exception as e:
+        cb(f"Erro fatal na thread FFmpeg: {e}")
+    finally:
+        self.after(0, lambda: self.btn_ff_start.configure(state='normal', text='INICIAR PROCESSAMENTO'))
 
     info_upd = ctk.CTkFrame(upd_table, fg_color='transparent')
     info_upd.grid(row=0, column=0, sticky='w')

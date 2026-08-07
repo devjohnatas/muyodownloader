@@ -62,6 +62,7 @@ O sistema baixa vídeos tanto de catálogos abertos quanto de plataformas que ne
 
 ## Funcionalidades
 
+- **Central FFmpeg Integrada (NOVO):** Aba exclusiva para conversão rápida de mídias, divisão de dual áudio e extração de sons em MP3/WAV.
 - **Download Sequencial Contínuo:** Baixa vídeo por vídeo (1 a 1) para utilizar 100% da velocidade da internet, com pausas inteligentes de segurança no final de cada arquivo para evitar desconexões ou bloqueios nos provedores.
 - **Fila Dinâmica:** Permite pesquisar e acrescentar novos episódios ou temporadas na lista sem parar os downloads em andamento.
 - **Filtros por Intervalo:** Recorte rápido de episódios (ex: do 01 ao 12) ou seleção por temporada completa via menu suspenso.
