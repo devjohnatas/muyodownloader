@@ -24,7 +24,7 @@ class MuyoDownloadApp(ctk.CTk):
     # Configuração de Tema Muyo Download (Modern Dark & Premium Vibrant Orange)
     ctk.set_appearance_mode('Dark')
 
-    self.title(f'Muyo Download v{updater.APP_VERSION}')
+    self.title(f'{updater.APP_NAME} v{updater.APP_VERSION}')
     # Janela compacta com largura perfeitamente dimensionada para 1 linha
     self.geometry('550x580')
     self.minsize(500, 500)
@@ -126,7 +126,7 @@ class MuyoDownloadApp(ctk.CTk):
     logo_img = self._get_logo_ctk_image(size_tuple=(26, 26))
     self.logo_label = ctk.CTkLabel(
         self.navbar_frame,
-        text=f' MUYO DOWNLOAD v{updater.APP_VERSION}',
+        text=f' {updater.APP_NAME.upper()} v{updater.APP_VERSION}',
         image=logo_img if logo_img else None,
         compound='left' if logo_img else 'center',
         font=ctk.CTkFont('Segoe UI', size=15, weight='bold'),
@@ -735,18 +735,18 @@ class MuyoDownloadApp(ctk.CTk):
       self.after(4000, lambda: self.lbl_cfg_feedback.configure(text=''))
       self.after(200, self._auto_connect_in_background)
     else:
-      messagebox.showerror('Erro', 'Falha ao gravar arquivo de configuração.')
+      self.show_notification('Erro', 'Falha ao gravar arquivo de configuração.', type='error')
 
   # -------------------------------------------------------------------------
   # SISTEMA AVANÇADO DE ATUALIZAÇÕES VIA GITHUB
   # -------------------------------------------------------------------------
   def _startup_update_check(self):
-    self._check_for_updates(silent_if_latest=True, auto_update=False)
+    self._check_for_updates(silent_if_latest=True, auto_update=True)
 
   def _manual_update_check(self):
     self.btn_check_upd.configure(text='⏳ Consultando...', state='disabled')
     self.lbl_upd_status.configure(text='Buscando novas versões...', text_color=self.c_orange_main)
-    self._check_for_updates(silent_if_latest=False, auto_update=False)
+    self._check_for_updates(silent_if_latest=False, auto_update=True)
     self.btn_check_upd.configure(text='🔄 Buscar Atualização', state='normal')
 
   def _check_for_updates(self, silent_if_latest: bool = False, auto_update: bool = False):
@@ -760,19 +760,18 @@ class MuyoDownloadApp(ctk.CTk):
         local_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root_dir, text=True, creationflags=flags).strip()
         upstream_hash = subprocess.check_output(["git", "rev-parse", "@{u}"], cwd=root_dir, text=True, creationflags=flags).strip()
         if local_hash != upstream_hash:
-          reply = messagebox.askyesno(
-              "Nova Atualização no Git!",
-              "Há uma nova atualização do código no repositório GitHub!\n\nDeseja puxar as alterações (git pull) e reiniciar o Muyo Download agora?"
-          )
-          if reply:
+          if auto_update:
+            self.show_notification("Atualizando Git", "Baixando nova versão do código...", type='info')
             subprocess.check_call(["git", "reset", "--hard", "HEAD"], cwd=root_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
             subprocess.check_call(["git", "pull"], cwd=root_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
             os.execv(sys.executable, [sys.executable] + sys.argv)
+          else:
+            self.show_notification("Atualização Disponível", "Nova versão disponível no Git. Use o botão Buscar Atualização.", type='info')
           return
         else:
           if not silent_if_latest:
             self.lbl_upd_status.configure(text='✔️ Código Git na versão mais recente!', text_color=self.c_green)
-            messagebox.showinfo("Atualizações", f"Você já está na versão mais recente do repositório Git (v{updater.APP_VERSION}).")
+            self.show_notification("Tudo Atualizado!", f"Você já está na versão mais recente do Git (v{updater.APP_VERSION}).", type='success')
           return
       except Exception as e:
         print("Aviso na checagem Git:", e)
@@ -784,7 +783,7 @@ class MuyoDownloadApp(ctk.CTk):
     except Exception as exc:
       if not silent_if_latest:
         self.lbl_upd_status.configure(text='❌ Erro na consulta ao GitHub.', text_color='#EF4444')
-        messagebox.showwarning("Sem Conexão", "Não foi possível contatar a API do GitHub para checar novas releases.")
+        self.show_notification("Sem Conexão", "Não foi possível contatar a API do GitHub.", type='error')
       return
 
     latest_tag = str(release_data.get("tag_name") or "").strip()
@@ -792,31 +791,30 @@ class MuyoDownloadApp(ctk.CTk):
     latest_url = str(release_data.get("html_url") or updater.GITHUB_RELEASES_URL)
 
     if updater.version_tuple(latest_tag) > updater.version_tuple(updater.APP_VERSION):
-      reply = messagebox.askyesno(
-          "🚀 Nova Versão Disponível!",
-          f"Uma nova versão do Muyo Download foi lançada no GitHub: {latest_tag or latest_name}!\n\nVersão atual: v{updater.APP_VERSION}\nNova versão: {latest_tag}\n\nDeseja instalar a atualização agora?"
-      )
-      if reply:
+      if auto_update:
         if updater.is_frozen():
           self.lbl_upd_status.configure(text='Baixando atualização autônoma...', text_color=self.c_orange_main)
+          self.show_notification("Nova Versão!", f"Baixando Muyo Download {latest_tag}...\nO programa vai reiniciar sozinho.", type='info', duration_ms=6000)
           def _upd_progress(rc, tot, msg_str):
             self.after(0, lambda: self.lbl_upd_status.configure(text=msg_str, text_color='#FDBA74'))
 
           ok, msg = updater.self_update_from_release(release_data, progress_cb=_upd_progress)
           if ok:
-            messagebox.showinfo("Atualizando...", "O Muyo Download irá reiniciar em 3 segundos para aplicar a nova versão!")
             self.destroy()
             os._exit(0)
           else:
-            messagebox.showerror("Erro na Auto-Atualização", f"Não foi possível aplicar o update autônomo:\n{msg}\n\nO navegador será aberto no link da release para download manual.")
+            self.show_notification("Erro na Atualização", f"Falha ao aplicar update:\n{msg[:50]}...", type='error', duration_ms=6000)
             webbrowser.open(latest_url, new=2)
         else:
-          messagebox.showinfo("Download de Release", f"Como você está executando pelo código fonte, o navegador será aberto na página oficial do GitHub para baixar o release:\n{latest_url}")
+          self.show_notification("Nova Versão Disponível", f"Abra o link oficial para baixar a versão {latest_tag}.", type='warning')
           webbrowser.open(latest_url, new=2)
+      else:
+        self.show_notification("Nova Versão Disponível", f"A versão {latest_tag} está disponível no GitHub.", type='info')
     else:
       if not silent_if_latest:
         self.lbl_upd_status.configure(text=f'✔️ App atualizado (v{updater.APP_VERSION})!', text_color=self.c_green)
-        messagebox.showinfo("Muyo Download Atualizado", f"Parabéns! Você já está executando a versão mais recente do Muyo Download (v{updater.APP_VERSION}).")
+        self.show_notification("App Atualizado!", f"Você já executa a versão mais recente (v{updater.APP_VERSION}).", type='success')
+
 
   # -------------------------------------------------------------------------
   # CONEXÃO INTERNET SILENCIOSA & PESQUISA DE OBRAS
@@ -845,16 +843,19 @@ class MuyoDownloadApp(ctk.CTk):
   def fetch_catalog(self):
     url = self.entry_url.get().strip()
     if not url:
-      messagebox.showwarning(
+      self.show_notification(
           'Aviso',
           'Por favor, cole o link do filme ou série na barra de pesquisa!',
+          type='warning'
       )
       return
 
     if 'encontrei.info' in url.lower() and (not self.auth.email or not self.auth.password):
-      messagebox.showwarning(
+      self.show_notification(
           'Login Necessário',
-          'O site Encontrei.info é exclusivo para membros e exige login.\n\nPor favor, acesse a aba "⚙️ Configurações", preencha o seu E-mail e Senha e clique em "Salvar Configurações"!',
+          'O site Encontrei.info é exclusivo para membros e exige login.\n\nAcesse a aba "Configurações", preencha seu E-mail/Senha e clique em "Salvar"!',
+          type='warning',
+          duration_ms=6000
       )
       self.select_tab('config')
       self.cfg_email.focus_set()
@@ -907,6 +908,11 @@ class MuyoDownloadApp(ctk.CTk):
 
     self.lbl_list_status.grid_forget()
     self.items_list = items
+    
+    # Atualiza o combobox de áudio automaticamente se o site já fornecer o idioma (ex: AnimeFire)
+    first_item_lang = items[0].get('lang')
+    if first_item_lang and first_item_lang in ['Dublado', 'Legendado', 'Ambos (Dub + Leg)']:
+      self.combo_lang.set(first_item_lang)
 
     if result.get('type') == 'series':
       seasons = result.get('seasons', [1])
@@ -1036,9 +1042,10 @@ class MuyoDownloadApp(ctk.CTk):
         else:
           chk.check_var.set(False)
     except ValueError:
-      messagebox.showwarning(
+      self.show_notification(
           'Formato Inválido',
           'Digite números de episódios inteiros para filtrar (Ex: de 1 a 10).',
+          type='warning'
       )
 
   # -------------------------------------------------------------------------
@@ -1051,9 +1058,10 @@ class MuyoDownloadApp(ctk.CTk):
         if chk.check_var.get()
     ]
     if len(selected) == 0:
-      messagebox.showwarning(
+      self.show_notification(
           'Nenhum item selecionado',
           'Selecione ao menos 1 episódio ou filme na lista antes de acionar!',
+          type='warning'
       )
       return
 
@@ -1078,10 +1086,11 @@ class MuyoDownloadApp(ctk.CTk):
           f'➕ {len(selected)} novos vídeos anexados à sequência!'
       )
       self._update_status_label(msg_added)
-      messagebox.showinfo(
+      self.show_notification(
           'Fila Expandida!',
-          f'Mais {len(selected)} itens foram anexados à fila!\nO'
-          ' programa continuará baixando tudo de forma sequencial, 1 a 1 sem travar o servidor!',
+          f'Mais {len(selected)} itens foram anexados à fila!\nO programa continuará baixando tudo de forma sequencial, 1 a 1 sem travar o servidor!',
+          type='success',
+          duration_ms=5000
       )
       self._update_btn_start_text()
       return
@@ -1235,11 +1244,11 @@ class MuyoDownloadApp(ctk.CTk):
     self.btn_cancel_dl.configure(state='disabled')
     self.progress_bar.set(1.0)
     self._update_status_label('🏆 TODOS OS DOWNLOADS CONCLUÍDOS COM SUCESSO!')
-    messagebox.showinfo(
+    self.show_notification(
         'Lote Concluído!',
-        'Todos os vídeos da sua lista sequencial foram processados sem erros e salvos em'
-        ' sua pasta:\n'
-        f"{self.config_mgr.get('default_folder')}",
+        f"Todos os vídeos foram processados e salvos em:\n{self.config_mgr.get('default_folder')}",
+        type='success',
+        duration_ms=7000
     )
 
   def cancel_download_process(self):
@@ -1256,3 +1265,43 @@ class MuyoDownloadApp(ctk.CTk):
       self._update_status_label('🛑 Downloads cancelados pelo usuário.')
       self.btn_cancel_dl.configure(state='disabled')
       self._update_btn_start_text()
+
+  def show_notification(self, title, message, type='info', duration_ms=4500):
+    """Exibe um Toast Notification in-app estilo cartão."""
+    color_map = {
+        'info': self.c_orange_main,
+        'success': '#10B981',
+        'warning': '#F59E0B',
+        'error': '#EF4444'
+    }
+    accent_color = color_map.get(type, self.c_orange_main)
+    
+    notif_frame = ctk.CTkFrame(
+        self, 
+        fg_color=self.c_bg_panel,
+        border_width=2,
+        border_color=accent_color,
+        corner_radius=8,
+        width=400
+    )
+    notif_frame.place(relx=0.5, rely=0.92, anchor='s')
+    
+    lbl_title = ctk.CTkLabel(
+        notif_frame, 
+        text=title, 
+        font=ctk.CTkFont('Segoe UI', size=14, weight='bold'),
+        text_color=accent_color
+    )
+    lbl_title.pack(pady=(12, 4), padx=16, anchor='w')
+    
+    lbl_msg = ctk.CTkLabel(
+        notif_frame,
+        text=message,
+        font=ctk.CTkFont('Segoe UI', size=12),
+        text_color='#E5E5E5',
+        justify='left',
+        wraplength=360
+    )
+    lbl_msg.pack(pady=(0, 12), padx=16, anchor='w')
+
+    self.after(duration_ms, notif_frame.destroy)

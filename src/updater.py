@@ -19,7 +19,7 @@ except ImportError:
 
 APP_NAME = "Muyo Download"
 APP_VERSION = APP_BUILD_VERSION
-GITHUB_REPO = "devjohnatas/muyodownloader"
+GITHUB_REPO = "devjohnatas/muyodownload"
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases/latest"
 GITHUB_API_LATEST_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 

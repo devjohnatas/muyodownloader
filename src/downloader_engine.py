@@ -197,10 +197,12 @@ class DownloaderEngine:
   def _ensure_browser_installed(self):
     try:
       import subprocess
+      flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
       subprocess.run(
           [sys.executable, "-m", "playwright", "install", "chromium"],
           check=False,
           capture_output=True,
+          creationflags=flags
       )
     except Exception as e:
       print(f"Aviso ao verificar navegadores do Playwright: {e}")
